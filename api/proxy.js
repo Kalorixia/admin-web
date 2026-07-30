@@ -27,7 +27,19 @@ export default function handler(request, response) {
     if (origin.protocol !== "http:" && origin.protocol !== "https:") {
       throw new Error("Unsupported protocol")
     }
-    target = new URL(request.url, origin)
+
+    const incomingUrl = new URL(request.url, "http://vercel.internal")
+    const pathValue = incomingUrl.searchParams.get("path")
+    if (!pathValue) {
+      response.statusCode = 400
+      response.end("Proxy path is missing")
+      return
+    }
+
+    incomingUrl.searchParams.delete("path")
+    const normalizedPath = pathValue.replace(/^\/+/, "")
+    target = new URL(`/api/${normalizedPath}`, origin)
+    target.search = incomingUrl.searchParams.toString()
   } catch {
     response.statusCode = 500
     response.end("BACKEND_ORIGIN is invalid")
