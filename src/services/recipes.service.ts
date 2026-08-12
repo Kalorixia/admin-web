@@ -127,8 +127,11 @@ export interface Ingrediente {
   unidad_medida: string | null
 }
 
-interface ListaRecetasResponse {
+export interface ListaRecetasResponse {
   recetas: RecetaListItem[]
+  total: number
+  limit: number | null
+  offset: number
 }
 interface ListaCategoriasResponse {
   categorias: Categoria[]
@@ -138,9 +141,20 @@ interface ListaIngredientesResponse {
 }
 
 export const recipesService = {
-  async list(): Promise<RecetaListItem[]> {
-    const { recetas } = await adminFetch<ListaRecetasResponse>("/recetas")
-    return recetas
+  /**
+   * Sin `limit`, devuelve el catálogo completo sin paginar (lo usa el
+   * dashboard para las estadísticas). El listado navegable de recetas debe
+   * pasar `limit`/`offset`.
+   */
+  async list(
+    params: { q?: string; limit?: number; offset?: number } = {}
+  ): Promise<ListaRecetasResponse> {
+    const search = new URLSearchParams()
+    if (params.q) search.set("q", params.q)
+    if (params.limit) search.set("limit", String(params.limit))
+    if (params.offset) search.set("offset", String(params.offset))
+    const qs = search.toString() ? `?${search.toString()}` : ""
+    return adminFetch<ListaRecetasResponse>(`/recetas${qs}`)
   },
 
   async get(id: number): Promise<RecetaDetalle> {
