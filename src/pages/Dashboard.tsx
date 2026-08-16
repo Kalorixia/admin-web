@@ -70,7 +70,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     ;(async () => {
-      const [users, nutriApplications, recipes, subscriptions, auditRows] =
+      const [users, nutriApplications, { recetas: recipes }, subscriptions, auditRows] =
         await Promise.all([
           usersService.list(),
           nutritionistsService.list(),
