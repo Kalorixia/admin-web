@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Clock, Save, Trash2, Plus, Loader2 } from "lucide-react"
+import {
+  ArrowLeft,
+  Clock,
+  Save,
+  Trash2,
+  Plus,
+  Loader2,
+  ImageOff,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -114,6 +122,9 @@ export default function RecipeEditor() {
   const [descripcion, setDescripcion] = useState("")
   const [imagenes, setImagenes] = useState<string[]>([])
   const [imagenActiva, setImagenActiva] = useState(0)
+  const [imagenesConError, setImagenesConError] = useState<Set<string>>(
+    new Set()
+  )
   const [uploadingImage, setUploadingImage] = useState(false)
   const [tiempoPreparacion, setTiempoPreparacion] = useState<number | "">("")
   const [porciones, setPorciones] = useState<number | "">(1)
@@ -209,13 +220,17 @@ export default function RecipeEditor() {
     const files = Array.from(e.target.files ?? [])
     if (files.length === 0) return
     if (imagenes.length + files.length > 5) {
-      toast.error(`Podés cargar hasta 5 imágenes. Te quedan ${5 - imagenes.length}.`)
+      toast.error(
+        `Podés cargar hasta 5 imágenes. Te quedan ${5 - imagenes.length}.`
+      )
       e.target.value = ""
       return
     }
     setUploadingImage(true)
     try {
-      const urls = await Promise.all(files.map((file) => recipesService.uploadImage(file)))
+      const urls = await Promise.all(
+        files.map((file) => recipesService.uploadImage(file))
+      )
       setImagenes((prev) => [...prev, ...urls])
       if (imagenes.length === 0) setImagenActiva(0)
     } catch (error) {
@@ -332,7 +347,7 @@ export default function RecipeEditor() {
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-5">
       <datalist id="catalogo-ingredientes">
         {catalogoIngredientes.map((i) => (
           <option key={i.id_ingrediente} value={i.nombre} />
@@ -345,60 +360,100 @@ export default function RecipeEditor() {
       >
         <ArrowLeft className="h-4 w-4" /> Volver
       </button>
-      <h1 className="text-brand-dark font-heading text-3xl font-bold">
-        {isNew ? "Nueva receta global" : "Editar receta"}
-      </h1>
+      <div className="hero-gradient rounded-3xl border border-primary/15 p-6 shadow-sm">
+        <p className="mb-1 text-xs font-semibold tracking-[0.18em] text-primary uppercase">
+          Catálogo global
+        </p>
+        <h1 className="font-heading text-3xl font-bold text-foreground">
+          {isNew ? "Nueva receta global" : "Editar receta"}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Completá la información y revisá cómo se presentará la receta.
+        </p>
+      </div>
 
-      {imagenes.length > 0 && (
-        <Card className="overflow-hidden p-0">
-          <div className="relative aspect-[16/7] bg-muted">
-            <img
-              src={imagenes[Math.min(imagenActiva, imagenes.length - 1)]}
-              alt={`Imagen ${Math.min(imagenActiva, imagenes.length - 1) + 1} de ${nombre || "la receta"}`}
-              className="h-full w-full object-cover"
-            />
-            <div className="absolute right-3 top-3 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white">
-              {Math.min(imagenActiva, imagenes.length - 1) + 1}/{imagenes.length}
-            </div>
-          </div>
-          <div className="flex gap-2 overflow-x-auto p-3">
-            {imagenes.map((url, index) => (
-              <div key={url} className="group relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setImagenActiva(index)}
-                  className={`h-16 w-24 overflow-hidden rounded-lg border-2 ${
-                    index === imagenActiva
-                      ? "border-primary"
-                      : "border-transparent"
-                  }`}
-                >
-                  <img
-                    src={url}
-                    alt={`Ver imagen ${index + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImagenes((prev) =>
-                      prev.filter((_, itemIndex) => itemIndex !== index)
+      <Card className="overflow-hidden border-border/70 p-0 shadow-sm">
+        {imagenes.length > 0 ? (
+          <>
+            <div className="relative aspect-[16/7] bg-muted">
+              {imagenesConError.has(
+                imagenes[Math.min(imagenActiva, imagenes.length - 1)]
+              ) ? (
+                <ImagePlaceholder message="No pudimos cargar esta imagen" />
+              ) : (
+                <img
+                  src={imagenes[Math.min(imagenActiva, imagenes.length - 1)]}
+                  alt={`Imagen ${Math.min(imagenActiva, imagenes.length - 1) + 1} de ${nombre || "la receta"}`}
+                  className="h-full w-full object-cover"
+                  onError={() =>
+                    setImagenesConError((current) =>
+                      new Set(current).add(
+                        imagenes[Math.min(imagenActiva, imagenes.length - 1)]
+                      )
                     )
-                    setImagenActiva((current) =>
-                      Math.max(0, Math.min(current, imagenes.length - 2))
-                    )
-                  }}
-                  aria-label={`Quitar imagen ${index + 1}`}
-                  className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-1 text-white shadow"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                  }
+                />
+              )}
+              <div className="absolute top-3 right-3 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white">
+                {Math.min(imagenActiva, imagenes.length - 1) + 1}/
+                {imagenes.length}
               </div>
-            ))}
+            </div>
+            <div className="flex gap-2 overflow-x-auto p-3">
+              {imagenes.map((url, index) => (
+                <div key={url} className="group relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setImagenActiva(index)}
+                    className={`h-16 w-24 overflow-hidden rounded-lg border-2 ${
+                      index === imagenActiva
+                        ? "border-primary"
+                        : "border-transparent"
+                    }`}
+                  >
+                    {imagenesConError.has(url) ? (
+                      <ImageOff
+                        className="mx-auto h-5 w-5 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <img
+                        src={url}
+                        alt={`Ver imagen ${index + 1}`}
+                        className="h-full w-full object-cover"
+                        onError={() =>
+                          setImagenesConError((current) =>
+                            new Set(current).add(url)
+                          )
+                        }
+                      />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImagenes((prev) =>
+                        prev.filter((_, itemIndex) => itemIndex !== index)
+                      )
+                      setImagenActiva((current) =>
+                        Math.max(0, Math.min(current, imagenes.length - 2))
+                      )
+                    }}
+                    aria-label={`Quitar imagen ${index + 1}`}
+                    className="absolute -top-1.5 -right-1.5 rounded-full bg-destructive p-1 text-white shadow"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="aspect-[16/7] min-h-52">
+            <ImagePlaceholder message="Esta receta todavía no tiene imágenes" />
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       <Card className="space-y-3 p-5">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -498,7 +553,8 @@ export default function RecipeEditor() {
             Información nutricional por porción
           </label>
           <p className="mt-1 text-xs text-muted-foreground">
-            Los cuatro valores básicos son obligatorios únicamente para publicar.
+            Los cuatro valores básicos son obligatorios únicamente para
+            publicar.
           </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-4">
             {CAMPOS_BASICOS.map((campo) => (
@@ -514,9 +570,7 @@ export default function RecipeEditor() {
                   onChange={(e) => {
                     setNutricion((prev) => ({
                       ...prev,
-                      [campo.key]: e.target.value
-                        ? Number(e.target.value)
-                        : "",
+                      [campo.key]: e.target.value ? Number(e.target.value) : "",
                     }))
                     setNutricionValidada(false)
                   }}
@@ -544,9 +598,7 @@ export default function RecipeEditor() {
                         onChange={(e) => {
                           setNutricion((prev) => ({
                             ...prev,
-                            [key]: e.target.value
-                              ? Number(e.target.value)
-                              : "",
+                            [key]: e.target.value ? Number(e.target.value) : "",
                           }))
                           setNutricionValidada(false)
                         }}
@@ -627,9 +679,9 @@ export default function RecipeEditor() {
             </div>
             <Switch
               checked={nutricionValidada}
-              disabled={!CAMPOS_BASICOS.every(
-                ({ key }) => nutricion[key] !== ""
-              )}
+              disabled={
+                !CAMPOS_BASICOS.every(({ key }) => nutricion[key] !== "")
+              }
               onCheckedChange={setNutricionValidada}
             />
           </div>
@@ -827,9 +879,7 @@ export default function RecipeEditor() {
                       ? {
                           ...x,
                           mostrarTiempo: !x.mostrarTiempo,
-                          tiempoMinutos: x.mostrarTiempo
-                            ? ""
-                            : x.tiempoMinutos,
+                          tiempoMinutos: x.mostrarTiempo ? "" : x.tiempoMinutos,
                         }
                       : x
                   )
@@ -861,7 +911,7 @@ export default function RecipeEditor() {
                   }
                   className="rounded-xl pr-8"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
                   min
                 </span>
               </div>
@@ -890,6 +940,17 @@ export default function RecipeEditor() {
           </>
         )}
       </Button>
+    </div>
+  )
+}
+
+function ImagePlaceholder({ message }: { message: string }) {
+  return (
+    <div className="surface-subtle flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
+      <span className="rounded-2xl bg-background/80 p-3 shadow-sm">
+        <ImageOff className="h-7 w-7 text-primary" aria-hidden="true" />
+      </span>
+      <span className="text-sm font-medium">{message}</span>
     </div>
   )
 }
