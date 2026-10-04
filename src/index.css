@@ -92,6 +92,9 @@
     --brand-beige: hsl(90 40% 98%);
     --brand-dark: hsl(150 25% 15%);
     --brand-orange: hsl(24 100% 58%);
+    --surface-raised: hsl(0 0% 100% / 0.88);
+    --surface-subtle: hsl(105 45% 96%);
+    --page-glow: hsl(142 65% 55% / 0.12);
 }
 
 .dark {
@@ -136,6 +139,9 @@
     --brand-beige: hsl(155 25% 8%);
     --brand-dark: hsl(90 25% 92%);
     --brand-orange: hsl(24 100% 62%);
+    --surface-raised: hsl(155 22% 12% / 0.9);
+    --surface-subtle: hsl(155 20% 15%);
+    --page-glow: hsl(142 65% 55% / 0.08);
 }
 
 @layer base {
@@ -143,7 +149,9 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image: radial-gradient(circle at 85% 0%, var(--page-glow), transparent 28rem);
+    background-attachment: fixed;
     }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -162,5 +170,12 @@
   }
   .card-shadow-hover {
     box-shadow: var(--card-shadow-hover);
+  }
+  .surface-raised {
+    background: var(--surface-raised);
+    box-shadow: var(--card-shadow);
+  }
+  .surface-subtle {
+    background: var(--surface-subtle);
   }
 }

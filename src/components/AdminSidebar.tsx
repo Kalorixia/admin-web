@@ -53,10 +53,10 @@ export default function AdminSidebar() {
     end ? pathname === url : pathname === url || pathname.startsWith(url + "/")
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarContent className="bg-background">
-        <div className="flex items-center gap-2.5 px-4 py-5">
-          <div className="shrink-0 rounded-xl bg-primary/10 p-2 text-primary">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80">
+      <SidebarContent className="bg-sidebar">
+        <div className="flex items-center gap-2.5 border-b border-sidebar-border/70 px-4 py-5">
+          <div className="shrink-0 rounded-xl bg-primary p-2 text-primary-foreground shadow-sm shadow-primary/25">
             <Leaf className="h-5 w-5" strokeWidth={2.2} />
           </div>
           {!collapsed && (
@@ -92,7 +92,7 @@ export default function AdminSidebar() {
                         />
                       }
                       isActive={active}
-                      className="h-10 rounded-lg"
+                      className="h-10 rounded-lg transition-colors data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:shadow-sm"
                     >
                       <it.icon className="h-4 w-4" />
                       {!collapsed && <span>{it.title}</span>}
@@ -105,7 +105,7 @@ export default function AdminSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="gap-2 border-t border-border/60 bg-background p-3">
+      <SidebarFooter className="gap-2 border-t border-sidebar-border/70 bg-sidebar p-3">
         <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/50">
           <HelpCircle className="h-4 w-4" />
           {!collapsed && <span>Ayuda y Soporte</span>}

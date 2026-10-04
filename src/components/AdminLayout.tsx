@@ -18,18 +18,18 @@ export default function AdminLayout() {
       <div className="flex min-h-screen w-full bg-background">
         <AdminSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/60 bg-background/80 px-3 backdrop-blur">
+          <header className="surface-raised sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 px-4 backdrop-blur-xl md:px-6">
             <SidebarTrigger />
             <Button
               size="sm"
               variant="ghost"
               onClick={handleSignOut}
-              className="gap-1.5 rounded-full text-muted-foreground"
+              className="gap-1.5 rounded-full border border-transparent text-muted-foreground hover:border-border hover:bg-secondary hover:text-foreground"
             >
               <LogOut className="h-4 w-4" /> Salir
             </Button>
           </header>
-          <main className="flex-1 p-6 md:p-8">
+          <main className="flex-1 p-4 sm:p-6 md:p-8">
             <Outlet />
           </main>
         </div>
