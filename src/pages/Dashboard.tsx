@@ -70,14 +70,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     ;(async () => {
-      const [users, nutriApplications, { recetas: recipes }, subscriptions, auditRows] =
-        await Promise.all([
-          usersService.list(),
-          nutritionistsService.list(),
-          recipesService.list(),
-          subscriptionsService.list(),
-          auditService.list(6),
-        ])
+      const [
+        users,
+        nutriApplications,
+        { recetas: recipes },
+        subscriptions,
+        auditRows,
+      ] = await Promise.all([
+        usersService.list(),
+        nutritionistsService.list(),
+        recipesService.list(),
+        subscriptionsService.list(),
+        auditService.list(6),
+      ])
 
       const patients = users.filter((u) => u.roles.includes("paciente")).length
       const nutris = users.filter((u) =>
@@ -159,12 +164,17 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground">
+      <div className="hero-gradient relative overflow-hidden rounded-3xl border border-primary/15 px-6 py-7 shadow-sm sm:px-8">
+        <div className="absolute -top-16 right-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+        <p className="mb-2 text-xs font-semibold tracking-[0.18em] text-primary uppercase">
+          Resumen operativo
+        </p>
+        <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Panel administrador
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Vista general del sistema Kalorixia
+          SeguÃ­ usuarios, profesionales, recetas y actividad desde un solo
+          lugar.
         </p>
       </div>
 
@@ -428,7 +438,7 @@ export default function Dashboard() {
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="card-shadow hover:card-shadow-hover rounded-2xl border border-border/60 bg-card p-5 transition-shadow">
+    <div className="card-shadow hover:card-shadow-hover rounded-2xl border border-border/70 bg-card/95 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20">
       {children}
     </div>
   )

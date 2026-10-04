@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Plus, Loader2, Pencil, Search, Trash2 } from "lucide-react"
+import { Plus, Loader2, Pencil, Search, Trash2, BookOpen } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -69,10 +69,13 @@ export default function Recipes() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="hero-gradient flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-primary/15 p-6 shadow-sm sm:p-8">
         <div>
-          <h1 className="text-brand-dark font-heading text-3xl font-bold">
+          <p className="mb-1 text-xs font-semibold tracking-[0.18em] text-primary uppercase">
+            Catálogo
+          </p>
+          <h1 className="font-heading text-3xl font-bold text-foreground">
             Recetas globales
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -87,13 +90,13 @@ export default function Recipes() {
         </Button>
       </div>
 
-      <div className="relative max-w-md">
+      <div className="relative max-w-lg">
         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre o categoría…"
-          className="rounded-xl pl-9"
+          className="surface-raised h-11 rounded-xl border-border/80 pl-9"
         />
       </div>
 
@@ -101,9 +104,12 @@ export default function Recipes() {
         <Loader2 className="h-5 w-5 animate-spin" />
       ) : (
         <>
-          <Card className="divide-y divide-border">
+          <Card className="divide-y divide-border/70 overflow-hidden border-border/70 p-0 shadow-sm">
             {rows.map((r) => (
-              <div key={r.id_receta} className="flex items-center gap-3 p-4">
+              <div
+                key={r.id_receta}
+                className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary/40 sm:gap-4"
+              >
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted">
                   {r.imagen_url ? (
                     <img
@@ -113,8 +119,8 @@ export default function Recipes() {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                      —
+                    <div className="surface-subtle flex h-full w-full items-center justify-center text-muted-foreground">
+                      <BookOpen className="h-5 w-5" aria-hidden="true" />
                     </div>
                   )}
                 </div>
@@ -122,7 +128,11 @@ export default function Recipes() {
                   <p className="truncate font-medium">{r.nombre}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {r.categorias.slice(0, 5).map((t) => (
-                      <Badge key={t} variant="secondary" className="text-[10px]">
+                      <Badge
+                        key={t}
+                        variant="secondary"
+                        className="text-[10px]"
+                      >
                         {t}
                       </Badge>
                     ))}
@@ -137,13 +147,14 @@ export default function Recipes() {
                   render={<Link to={`/recetas/${r.id_receta}`} />}
                   size="sm"
                   variant="outline"
-                  className="rounded-xl"
+                  className="rounded-xl border-primary/25 text-primary hover:bg-primary/10"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
                   size="icon"
-                  variant="ghost"
+                  variant="outline"
+                  className="border-destructive/20 hover:bg-destructive/10"
                   onClick={() => remove(r.id_receta)}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
