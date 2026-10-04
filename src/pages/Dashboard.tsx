@@ -173,7 +173,7 @@ export default function Dashboard() {
           Panel administrador
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          SeguÃ­ usuarios, profesionales, recetas y actividad desde un solo
+          Seguí usuarios, profesionales, recetas y actividad desde un solo
           lugar.
         </p>
       </div>
