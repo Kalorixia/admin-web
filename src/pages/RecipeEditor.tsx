@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   ArrowLeft,
   Clock,
@@ -20,6 +20,7 @@ import {
   type Ingrediente,
   type NutricionRecetaInput,
   type RecetaInput,
+  type TipoReceta,
 } from "@/services/recipes.service"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
@@ -114,7 +115,15 @@ export default function RecipeEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
   const confirm = useConfirm()
+  const [searchParams] = useSearchParams()
   const isNew = !id || id === "nueva"
+  // Un alimento (yogur, banana, pan) es una porción de una sola cosa: sin
+  // pasos ni tiempo, con un ingrediente que lo representa (KAL-132-06).
+  const [tipo, setTipo] = useState<TipoReceta>(
+    isNew && searchParams.get("tipo") === "alimento" ? "alimento" : "receta"
+  )
+  const [porcionDescripcion, setPorcionDescripcion] = useState("")
+  const esAlimento = tipo === "alimento"
 
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -165,6 +174,8 @@ export default function RecipeEditor() {
 
       if (!isNew) {
         const data = await recipesService.get(Number(id))
+        setTipo(data.tipo ?? "receta")
+        setPorcionDescripcion(data.porcion_descripcion ?? "")
         setNombre(data.nombre)
         setDescripcion(data.descripcion ?? "")
         setImagenes(data.imagenes)
@@ -264,6 +275,12 @@ export default function RecipeEditor() {
       toast.error("Falta el nombre")
       return
     }
+    if (esAlimento && !porcionDescripcion.trim()) {
+      toast.error(
+        "Indicá qué es una porción, por ejemplo «1 unidad mediana (118 g)»."
+      )
+      return
+    }
     const basicosCompletos = CAMPOS_BASICOS.every(
       ({ key }) => nutricion[key] !== ""
     )
@@ -275,11 +292,11 @@ export default function RecipeEditor() {
     }
     const ok = await confirm({
       title: isNew
-        ? "¿Estás seguro que desea incorporar una nueva receta?"
-        : "¿Estás seguro que desea guardar los cambios de la receta?",
+        ? `¿Estás seguro que desea incorporar ${esAlimento ? "un nuevo alimento" : "una nueva receta"}?`
+        : `¿Estás seguro que desea guardar los cambios ${esAlimento ? "del alimento" : "de la receta"}?`,
       description: isNew
-        ? "La receta quedará disponible en el catálogo."
-        : "Se actualizarán los datos de la receta.",
+        ? `${esAlimento ? "El alimento" : "La receta"} quedará disponible en el catálogo.`
+        : `Se actualizarán los datos ${esAlimento ? "del alimento" : "de la receta"}.`,
       confirmText: "Aceptar",
       cancelText: "Cancelar",
     })
@@ -301,40 +318,67 @@ export default function RecipeEditor() {
           validada: nutricionValidada && basicosCompletos,
         }
       : null
+    const ingredientesPayload = ingredientes
+      .filter((i) => i.nombre.trim())
+      .map((i) => ({
+        nombre: i.nombre.trim(),
+        cantidad: i.cantidad === "" ? null : Number(i.cantidad),
+        unidad: i.unidad.trim() || null,
+        observaciones: i.observaciones.trim() || null,
+      }))
+    const representa = ingredientes[0] ?? ingredienteVacio()
     const payload: RecetaInput = {
+      tipo,
+      porcion_descripcion: esAlimento ? porcionDescripcion.trim() : null,
       nombre: nombre.trim(),
       descripcion: descripcion.trim() || null,
       imagenes,
-      tiempo_preparacion:
-        tiempoPreparacion === "" ? 0 : Number(tiempoPreparacion),
-      porciones: porciones === "" ? 1 : Number(porciones),
-      dificultad,
+      tiempo_preparacion: esAlimento
+        ? 0
+        : tiempoPreparacion === ""
+          ? 0
+          : Number(tiempoPreparacion),
+      porciones: esAlimento ? 1 : porciones === "" ? 1 : Number(porciones),
+      dificultad: esAlimento ? null : dificultad,
       publica,
-      ingredientes: ingredientes
-        .filter((i) => i.nombre.trim())
-        .map((i) => ({
-          nombre: i.nombre.trim(),
-          cantidad: i.cantidad === "" ? null : Number(i.cantidad),
-          unidad: i.unidad.trim() || null,
-          observaciones: i.observaciones.trim() || null,
-        })),
-      pasos: pasos
-        .filter((p) => p.descripcion.trim())
-        .map((p) => ({
-          descripcion: p.descripcion.trim(),
-          tiempo_minutos:
-            p.tiempoMinutos === "" ? null : Number(p.tiempoMinutos),
-        })),
+      // El ingrediente de un alimento es lo que mira el filtro de
+      // restricciones; sin uno escrito, se usa el nombre del alimento.
+      ingredientes: esAlimento
+        ? [
+            {
+              nombre: representa.nombre.trim() || nombre.trim(),
+              cantidad:
+                representa.cantidad === "" ? null : Number(representa.cantidad),
+              unidad: representa.unidad.trim() || null,
+              observaciones: null,
+            },
+          ]
+        : ingredientesPayload,
+      pasos: esAlimento
+        ? []
+        : pasos
+            .filter((p) => p.descripcion.trim())
+            .map((p) => ({
+              descripcion: p.descripcion.trim(),
+              tiempo_minutos:
+                p.tiempoMinutos === "" ? null : Number(p.tiempoMinutos),
+            })),
       categorias: categoriasSeleccionadas,
       nutricion: nutricionPayload,
     }
     try {
       if (isNew) {
         await recipesService.create(payload)
-        toast.success("La receta se incorporó con éxito!")
+        toast.success(
+          esAlimento
+            ? "El alimento se incorporó con éxito!"
+            : "La receta se incorporó con éxito!"
+        )
       } else {
         await recipesService.update(Number(id), payload)
-        toast.success("Receta actualizada")
+        toast.success(
+          esAlimento ? "Alimento actualizado" : "Receta actualizada"
+        )
       }
       navigate("/recetas")
     } catch (error) {
@@ -365,11 +409,50 @@ export default function RecipeEditor() {
           Catálogo global
         </p>
         <h1 className="font-heading text-3xl font-bold text-foreground">
-          {isNew ? "Nueva receta global" : "Editar receta"}
+          {esAlimento
+            ? isNew
+              ? "Nuevo alimento"
+              : "Editar alimento"
+            : isNew
+              ? "Nueva receta global"
+              : "Editar receta"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Completá la información y revisá cómo se presentará la receta.
+          {esAlimento
+            ? "Algo que se come sin preparar (yogur, banana, pan): una porción con su nutrición."
+            : "Completá la información y revisá cómo se presentará la receta."}
         </p>
+      </div>
+
+      <div
+        role="radiogroup"
+        aria-label="Tipo"
+        className="inline-flex rounded-xl border border-border/80 bg-muted/40 p-1"
+      >
+        {(
+          [
+            ["receta", "Receta"],
+            ["alimento", "Alimento"],
+          ] as const
+        ).map(([valor, etiqueta]) => (
+          <button
+            key={valor}
+            type="button"
+            role="radio"
+            aria-checked={tipo === valor}
+            onClick={() => {
+              setTipo(valor)
+              setNutricionValidada(false)
+            }}
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+              tipo === valor
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
       </div>
 
       <Card className="overflow-hidden border-border/70 p-0 shadow-sm">
@@ -503,51 +586,77 @@ export default function RecipeEditor() {
             className="rounded-xl"
           />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        {esAlimento ? (
           <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Tiempo (min)
+            <label
+              htmlFor="porcion-descripcion"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Porción
             </label>
             <Input
-              type="number"
-              value={tiempoPreparacion}
-              onChange={(e) =>
-                setTiempoPreparacion(
-                  e.target.value ? Number(e.target.value) : ""
-                )
-              }
-              className="rounded-xl"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Porciones
-            </label>
-            <Input
-              type="number"
-              value={porciones}
+              id="porcion-descripcion"
+              value={porcionDescripcion}
+              maxLength={100}
               onChange={(e) => {
-                setPorciones(e.target.value ? Number(e.target.value) : "")
+                setPorcionDescripcion(e.target.value)
                 setNutricionValidada(false)
               }}
+              placeholder="Ej: 1 unidad mediana (118 g), 1 pote (190 g), 2 rebanadas (50 g)"
               className="rounded-xl"
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              En medida casera y gramos. La nutrición de abajo es de esta
+              porción.
+            </p>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Dificultad
-            </label>
-            <select
-              value={dificultad}
-              onChange={(e) => setDificultad(e.target.value)}
-              className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-            >
-              <option>Fácil</option>
-              <option>Media</option>
-              <option>Difícil</option>
-            </select>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Tiempo (min)
+              </label>
+              <Input
+                type="number"
+                value={tiempoPreparacion}
+                onChange={(e) =>
+                  setTiempoPreparacion(
+                    e.target.value ? Number(e.target.value) : ""
+                  )
+                }
+                className="rounded-xl"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Porciones
+              </label>
+              <Input
+                type="number"
+                value={porciones}
+                onChange={(e) => {
+                  setPorciones(e.target.value ? Number(e.target.value) : "")
+                  setNutricionValidada(false)
+                }}
+                className="rounded-xl"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Dificultad
+              </label>
+              <select
+                value={dificultad}
+                onChange={(e) => setDificultad(e.target.value)}
+                className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+              >
+                <option>Fácil</option>
+                <option>Media</option>
+                <option>Difícil</option>
+              </select>
+            </div>
           </div>
-        </div>
+        )}
         <div>
           <label className="text-xs font-medium text-muted-foreground">
             Información nutricional por porción
@@ -688,9 +797,13 @@ export default function RecipeEditor() {
         </div>
         <div className="flex items-center justify-between rounded-xl border p-3">
           <div>
-            <p className="text-sm font-medium">Receta pública</p>
+            <p className="text-sm font-medium">
+              {esAlimento ? "Alimento público" : "Receta pública"}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Las recetas no públicas no aparecen en el catálogo general.
+              {esAlimento
+                ? "Los alimentos no públicos no aparecen en el catálogo ni los usa el Copiloto."
+                : "Las recetas no públicas no aparecen en el catálogo general."}
             </p>
           </div>
           <Switch checked={publica} onCheckedChange={setPublica} />
@@ -754,178 +867,194 @@ export default function RecipeEditor() {
 
       <Card className="space-y-2 p-5">
         <div className="flex items-center justify-between">
-          <h3 className="font-heading font-bold">Ingredientes</h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setIngredientes((p) => [...p, ingredienteVacio()])
-              setNutricionValidada(false)
-            }}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <h3 className="font-heading font-bold">
+            {esAlimento ? "Ingrediente que lo representa" : "Ingredientes"}
+          </h3>
+          {!esAlimento && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setIngredientes((p) => [...p, ingredienteVacio()])
+                setNutricionValidada(false)
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Elegí un ingrediente del catálogo o escribí uno nuevo — se agrega
-          solo.
+          {esAlimento
+            ? "Es lo que mira el filtro de restricciones del Copiloto (por ejemplo, «Leche» para un yogur). Si lo dejás vacío, se usa el nombre del alimento."
+            : "Elegí un ingrediente del catálogo o escribí uno nuevo — se agrega solo."}
         </p>
-        {ingredientes.map((ing, i) => {
-          const updateIngrediente = (patch: Partial<IngredienteForm>) => {
-            setIngredientes((p) =>
-              p.map((x, idx) => (idx === i ? { ...x, ...patch } : x))
-            )
-            setNutricionValidada(false)
-          }
-          return (
-            <div key={i} className="space-y-1.5">
-              <div className="flex gap-2">
-                <Input
-                  value={ing.nombre}
-                  onChange={(e) =>
-                    updateIngrediente({ nombre: e.target.value })
-                  }
-                  list="catalogo-ingredientes"
-                  placeholder="Nombre"
-                  className="flex-1 rounded-xl"
-                />
-                <Input
-                  type="number"
-                  value={ing.cantidad}
-                  onChange={(e) =>
-                    updateIngrediente({
-                      cantidad: e.target.value ? Number(e.target.value) : "",
-                    })
-                  }
-                  className="w-24 rounded-xl"
-                  placeholder="Cant."
-                />
-                <select
-                  value={ing.unidad}
-                  onChange={(e) =>
-                    updateIngrediente({ unidad: e.target.value })
-                  }
-                  className="h-10 w-20 rounded-xl border border-input bg-background px-2 text-sm"
-                >
-                  {UNIDADES.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setIngredientes((p) => p.filter((_, idx) => idx !== i))
-                    setNutricionValidada(false)
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+        {(esAlimento ? ingredientes.slice(0, 1) : ingredientes).map(
+          (ing, i) => {
+            const updateIngrediente = (patch: Partial<IngredienteForm>) => {
+              setIngredientes((p) =>
+                p.map((x, idx) => (idx === i ? { ...x, ...patch } : x))
+              )
+              setNutricionValidada(false)
+            }
+            return (
+              <div key={i} className="space-y-1.5">
+                <div className="flex gap-2">
+                  <Input
+                    value={ing.nombre}
+                    onChange={(e) =>
+                      updateIngrediente({ nombre: e.target.value })
+                    }
+                    list="catalogo-ingredientes"
+                    placeholder={esAlimento ? nombre || "Nombre" : "Nombre"}
+                    className="flex-1 rounded-xl"
+                  />
+                  <Input
+                    type="number"
+                    value={ing.cantidad}
+                    onChange={(e) =>
+                      updateIngrediente({
+                        cantidad: e.target.value ? Number(e.target.value) : "",
+                      })
+                    }
+                    className="w-24 rounded-xl"
+                    placeholder="Cant."
+                  />
+                  <select
+                    value={ing.unidad}
+                    onChange={(e) =>
+                      updateIngrediente({ unidad: e.target.value })
+                    }
+                    className="h-10 w-20 rounded-xl border border-input bg-background px-2 text-sm"
+                  >
+                    {UNIDADES.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                  {!esAlimento && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Quitar ingrediente"
+                      onClick={() => {
+                        setIngredientes((p) => p.filter((_, idx) => idx !== i))
+                        setNutricionValidada(false)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          }
+        )}
       </Card>
 
-      <Card className="space-y-2 p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="font-heading font-bold">Pasos</h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setPasos((p) => [
-                ...p,
-                {
-                  descripcion: "",
-                  tiempoMinutos: "",
-                  mostrarTiempo: false,
-                },
-              ])
-            }
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        {pasos.map((s, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <span className="mt-2 w-6 text-xs font-bold text-muted-foreground">
-              {i + 1}
-            </span>
-            <Textarea
-              value={s.descripcion}
-              onChange={(e) =>
-                setPasos((p) =>
-                  p.map((x, idx) =>
-                    idx === i ? { ...x, descripcion: e.target.value } : x
-                  )
-                )
-              }
-              className="flex-1 rounded-xl"
-              rows={2}
-            />
+      {!esAlimento && (
+        <Card className="space-y-2 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading font-bold">Pasos</h3>
             <Button
-              type="button"
-              size="icon"
-              variant={s.mostrarTiempo ? "secondary" : "ghost"}
-              title={s.mostrarTiempo ? "Quitar tiempo" : "Agregar tiempo"}
-              aria-label={s.mostrarTiempo ? "Quitar tiempo" : "Agregar tiempo"}
+              size="sm"
+              variant="outline"
               onClick={() =>
-                setPasos((p) =>
-                  p.map((x, idx) =>
-                    idx === i
-                      ? {
-                          ...x,
-                          mostrarTiempo: !x.mostrarTiempo,
-                          tiempoMinutos: x.mostrarTiempo ? "" : x.tiempoMinutos,
-                        }
-                      : x
-                  )
-                )
+                setPasos((p) => [
+                  ...p,
+                  {
+                    descripcion: "",
+                    tiempoMinutos: "",
+                    mostrarTiempo: false,
+                  },
+                ])
               }
             >
-              <Clock className="h-4 w-4" />
-            </Button>
-            {s.mostrarTiempo && (
-              <div className="relative w-28">
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="Minutos"
-                  value={s.tiempoMinutos}
-                  onChange={(e) =>
-                    setPasos((p) =>
-                      p.map((x, idx) =>
-                        idx === i
-                          ? {
-                              ...x,
-                              tiempoMinutos: e.target.value
-                                ? Number(e.target.value)
-                                : "",
-                            }
-                          : x
-                      )
-                    )
-                  }
-                  className="rounded-xl pr-8"
-                />
-                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-                  min
-                </span>
-              </div>
-            )}
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setPasos((p) => p.filter((_, idx) => idx !== i))}
-            >
-              <Trash2 className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </Button>
           </div>
-        ))}
-      </Card>
+          {pasos.map((s, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="mt-2 w-6 text-xs font-bold text-muted-foreground">
+                {i + 1}
+              </span>
+              <Textarea
+                value={s.descripcion}
+                onChange={(e) =>
+                  setPasos((p) =>
+                    p.map((x, idx) =>
+                      idx === i ? { ...x, descripcion: e.target.value } : x
+                    )
+                  )
+                }
+                className="flex-1 rounded-xl"
+                rows={2}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant={s.mostrarTiempo ? "secondary" : "ghost"}
+                title={s.mostrarTiempo ? "Quitar tiempo" : "Agregar tiempo"}
+                aria-label={
+                  s.mostrarTiempo ? "Quitar tiempo" : "Agregar tiempo"
+                }
+                onClick={() =>
+                  setPasos((p) =>
+                    p.map((x, idx) =>
+                      idx === i
+                        ? {
+                            ...x,
+                            mostrarTiempo: !x.mostrarTiempo,
+                            tiempoMinutos: x.mostrarTiempo
+                              ? ""
+                              : x.tiempoMinutos,
+                          }
+                        : x
+                    )
+                  )
+                }
+              >
+                <Clock className="h-4 w-4" />
+              </Button>
+              {s.mostrarTiempo && (
+                <div className="relative w-28">
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Minutos"
+                    value={s.tiempoMinutos}
+                    onChange={(e) =>
+                      setPasos((p) =>
+                        p.map((x, idx) =>
+                          idx === i
+                            ? {
+                                ...x,
+                                tiempoMinutos: e.target.value
+                                  ? Number(e.target.value)
+                                  : "",
+                              }
+                            : x
+                        )
+                      )
+                    }
+                    className="rounded-xl pr-8"
+                  />
+                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
+                    min
+                  </span>
+                </div>
+              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setPasos((p) => p.filter((_, idx) => idx !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <Button
         onClick={save}
@@ -936,7 +1065,8 @@ export default function RecipeEditor() {
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           <>
-            <Save className="mr-1 h-4 w-4" /> Guardar receta
+            <Save className="mr-1 h-4 w-4" />{" "}
+            {esAlimento ? "Guardar alimento" : "Guardar receta"}
           </>
         )}
       </Button>

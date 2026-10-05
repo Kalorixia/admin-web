@@ -1,17 +1,35 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Plus, Loader2, Pencil, Search, Trash2, BookOpen } from "lucide-react"
+import {
+  Apple,
+  BookOpen,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import Pagination from "@/components/Pagination"
-import { recipesService, type RecetaListItem } from "@/services/recipes.service"
+import {
+  recipesService,
+  type RecetaListItem,
+  type TipoReceta,
+} from "@/services/recipes.service"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
 
 const LIMIT = 20
 const DEBOUNCE_MS = 350
+
+const FILTROS: { value: TipoReceta | ""; label: string }[] = [
+  { value: "", label: "Todos" },
+  { value: "receta", label: "Recetas" },
+  { value: "alimento", label: "Alimentos" },
+]
 
 export default function Recipes() {
   const confirm = useConfirm()
@@ -21,6 +39,7 @@ export default function Recipes() {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [loading, setLoading] = useState(true)
+  const [tipo, setTipo] = useState<TipoReceta | "">("")
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -38,6 +57,7 @@ export default function Recipes() {
         q: debouncedQuery || undefined,
         limit: LIMIT,
         offset,
+        tipo: tipo || undefined,
       })
       setRows(result.recetas)
       setTotal(result.total)
@@ -51,7 +71,7 @@ export default function Recipes() {
       await load()
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, offset])
+  }, [debouncedQuery, offset, tipo])
 
   const remove = async (id: number) => {
     const ok = await confirm({
@@ -82,22 +102,58 @@ export default function Recipes() {
             Catálogo disponible para todos los usuarios
           </p>
         </div>
-        <Button
-          render={<Link to="/recetas/nueva" />}
-          className="bg-brand-green hover:bg-brand-green/90 rounded-xl text-white"
-        >
-          <Plus className="mr-1 h-4 w-4" /> Nueva receta
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            render={<Link to="/recetas/nueva?tipo=alimento" />}
+            variant="outline"
+            className="rounded-xl"
+          >
+            <Apple className="mr-1 h-4 w-4" /> Nuevo alimento
+          </Button>
+          <Button
+            render={<Link to="/recetas/nueva" />}
+            className="bg-brand-green hover:bg-brand-green/90 rounded-xl text-white"
+          >
+            <Plus className="mr-1 h-4 w-4" /> Nueva receta
+          </Button>
+        </div>
       </div>
 
-      <div className="relative max-w-lg">
-        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nombre o categoría…"
-          className="surface-raised h-11 rounded-xl border-border/80 pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          role="tablist"
+          aria-label="Tipo"
+          className="inline-flex rounded-xl border border-border/80 bg-muted/40 p-1"
+        >
+          {FILTROS.map((filtro) => (
+            <button
+              key={filtro.value}
+              type="button"
+              role="tab"
+              aria-selected={tipo === filtro.value}
+              onClick={() => {
+                setTipo(filtro.value)
+                setOffset(0)
+              }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                tipo === filtro.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {filtro.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative max-w-lg flex-1">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nombre o categoría…"
+            className="surface-raised h-11 rounded-xl border-border/80 pl-9"
+          />
+        </div>
       </div>
 
       {loading ? (
@@ -127,6 +183,14 @@ export default function Recipes() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{r.nombre}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
+                    {r.tipo === "alimento" && (
+                      <Badge className="bg-primary/10 text-[10px] text-primary">
+                        Alimento
+                        {r.porcion_descripcion
+                          ? ` · ${r.porcion_descripcion}`
+                          : ""}
+                      </Badge>
+                    )}
                     {r.categorias.slice(0, 5).map((t) => (
                       <Badge
                         key={t}
@@ -164,8 +228,10 @@ export default function Recipes() {
             {rows.length === 0 && (
               <p className="p-6 text-center text-sm text-muted-foreground">
                 {debouncedQuery
-                  ? "No encontramos recetas para esa búsqueda."
-                  : "Cargá la primera receta global."}
+                  ? "No encontramos nada para esa búsqueda."
+                  : tipo === "alimento"
+                    ? "Todavía no hay alimentos cargados."
+                    : "Cargá la primera receta global."}
               </p>
             )}
           </Card>
