@@ -1,7 +1,13 @@
 import { adminFetch } from "@/services/http"
 
+/** receta = preparación con pasos; alimento = se come sin preparar (KAL-131-02). */
+export type TipoReceta = "receta" | "alimento"
+
 export interface RecetaListItem {
   id_receta: number
+  tipo?: TipoReceta
+  /** Qué es una porción, ej. "1 unidad mediana (118 g)". */
+  porcion_descripcion?: string | null
   nombre: string
   descripcion: string | null
   tiempo_preparacion: number
@@ -101,6 +107,8 @@ export interface PasoInput {
 }
 
 export interface RecetaInput {
+  tipo: TipoReceta
+  porcion_descripcion?: string | null
   nombre: string
   descripcion?: string | null
   tiempo_preparacion: number
@@ -147,10 +155,16 @@ export const recipesService = {
    * pasar `limit`/`offset`.
    */
   async list(
-    params: { q?: string; limit?: number; offset?: number } = {}
+    params: {
+      q?: string
+      limit?: number
+      offset?: number
+      tipo?: TipoReceta
+    } = {}
   ): Promise<ListaRecetasResponse> {
     const search = new URLSearchParams()
     if (params.q) search.set("q", params.q)
+    if (params.tipo) search.set("tipo", params.tipo)
     if (params.limit) search.set("limit", String(params.limit))
     if (params.offset) search.set("offset", String(params.offset))
     const qs = search.toString() ? `?${search.toString()}` : ""
