@@ -1,17 +1,12 @@
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet } from "react-router-dom"
 import { LogOut } from "lucide-react"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import AdminSidebar from "@/components/AdminSidebar"
-import { useAuth } from "@/hooks/use-auth"
+import { useConfirmedSignOut } from "@/hooks/use-confirmed-sign-out"
 
 export default function AdminLayout() {
-  const { signOut } = useAuth()
-  const navigate = useNavigate()
-  const handleSignOut = async () => {
-    await signOut()
-    navigate("/login", { replace: true })
-  }
+  const handleSignOut = useConfirmedSignOut()
 
   return (
     <SidebarProvider>
