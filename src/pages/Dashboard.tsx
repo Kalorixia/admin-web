@@ -18,7 +18,10 @@ import KalorixiaLoader from "@/components/KalorixiaLoader"
 import { usersService } from "@/services/users.service"
 import { nutritionistsService } from "@/services/nutritionists.service"
 import { recipesService } from "@/services/recipes.service"
-import { subscriptionsService } from "@/services/subscriptions.service"
+import {
+  subscriptionsService,
+  type PlanSuscripcion,
+} from "@/services/subscriptions.service"
 import { auditService, type AuditRow } from "@/services/audit.service"
 
 interface Stats {
@@ -26,7 +29,6 @@ interface Stats {
   patients: number
   nutris: number
   pendingNutris: number
-  premium: number
   recipes: number
   recipesActive: number
   recipesReview: number
@@ -84,7 +86,6 @@ export default function Dashboard() {
     patients: 0,
     nutris: 0,
     pendingNutris: 0,
-    premium: 0,
     recipes: 0,
     recipesActive: 0,
     recipesReview: 0,
@@ -97,23 +98,33 @@ export default function Dashboard() {
   const [recipesByMonth, setRecipesByMonth] = useState<
     { m: string; v: number }[]
   >([])
+  const [planCounts, setPlanCounts] = useState<
+    { plan: PlanSuscripcion; total: number }[] | null
+  >(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // KAL-152-02: aparte del Promise.all principal para que un servidor sin
+    // estos endpoints no tire abajo todo el dashboard.
+    Promise.all([subscriptionsService.list(), subscriptionsService.listPlans()])
+      .then(([list, plans]) =>
+        setPlanCounts(
+          plans.map((plan) => ({
+            plan,
+            total: list.filter((n) => n.plan.codigo === plan.codigo).length,
+          }))
+        )
+      )
+      .catch(() => setPlanCounts(null))
+
     ;(async () => {
-      const [
-        users,
-        nutriApplications,
-        { recetas: recipes },
-        subscriptions,
-        auditRows,
-      ] = await Promise.all([
-        usersService.list(),
-        nutritionistsService.list(),
-        recipesService.list(),
-        subscriptionsService.list(),
-        auditService.list(6),
-      ])
+      const [users, nutriApplications, { recetas: recipes }, auditRows] =
+        await Promise.all([
+          usersService.list(),
+          nutritionistsService.list(),
+          recipesService.list(),
+          auditService.list(6),
+        ])
 
       const patients = users.filter((u) => u.roles.includes("paciente")).length
       const nutris = users.filter((u) =>
@@ -122,14 +133,12 @@ export default function Dashboard() {
       const pendingNutris = nutriApplications.filter(
         (n) => n.estado === "pendiente"
       ).length
-      const premium = subscriptions.filter((s) => s.status === "activa").length
 
       setStats({
         users: users.length,
         patients,
         nutris,
         pendingNutris,
-        premium,
         recipes: recipes.length,
         recipesActive: Math.max(recipes.length - 1, 0),
         recipesReview: recipes.length > 0 ? 1 : 0,
@@ -395,21 +404,34 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-start justify-between">
             <p className="text-sm text-muted-foreground">
-              Suscripciones Premium Totales
+              Suscripciones por plan
             </p>
             <Crown className="h-4 w-4 text-primary" />
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Suscripciones Premium activas
-          </p>
-          <p className="mt-1 font-heading text-5xl font-bold text-foreground">
-            {stats.premium}
-          </p>
+          {planCounts === null ? (
+            <p className="mt-3 font-heading text-5xl font-bold text-foreground">
+              —
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-1">
+              {planCounts.map(({ plan, total }) => (
+                <li
+                  key={plan.codigo}
+                  className="flex items-baseline justify-between text-sm"
+                >
+                  <span className="text-muted-foreground">{plan.nombre}</span>
+                  <span className="font-heading text-2xl font-bold text-foreground">
+                    {total}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           <Link
             to="/suscripciones"
             className="mt-4 inline-block text-xs font-semibold text-primary underline underline-offset-2 hover:underline"
           >
-            Gestionar planes
+            Gestionar suscripciones
           </Link>
         </Card>
       </div>

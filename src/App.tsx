@@ -13,7 +13,8 @@ import Nutritionists from "@/pages/Nutritionists"
 import Recipes from "@/pages/Recipes"
 import RecipeEditor from "@/pages/RecipeEditor"
 import Subscriptions from "@/pages/Subscriptions"
-import SubscriptionPlans from "@/pages/SubscriptionPlans"
+// KAL-152-02: oculto, los planes entran por migración (sin ABM ni precios). No borrar.
+// import SubscriptionPlans from "@/pages/SubscriptionPlans"
 import ForgotPassword from "@/pages/ForgotPassword"
 // KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar.
 // import Audit from "@/pages/Audit"
@@ -42,7 +43,8 @@ export function App() {
                 <Route path="recetas/nueva" element={<RecipeEditor />} />
                 <Route path="recetas/:id" element={<RecipeEditor />} />
                 <Route path="suscripciones" element={<Subscriptions />} />
-                <Route path="planes" element={<SubscriptionPlans />} />
+                {/* KAL-152-02: oculto, los planes entran por migración (sin ABM ni precios). No borrar. */}
+                {/* <Route path="planes" element={<SubscriptionPlans />} /> */}
                 {/* KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar. */}
                 {/* <Route path="auditoria" element={<Audit />} /> */}
                 {/* <Route path="roles" element={<Roles />} /> */}

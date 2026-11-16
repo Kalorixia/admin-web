@@ -1,55 +1,114 @@
 import { useEffect, useState } from "react"
 import { Crown, Search } from "lucide-react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
   subscriptionsService,
-  type SubscriptionRow,
+  type PlanSuscripcion,
+  type SuscripcionNutricionista,
 } from "@/services/subscriptions.service"
 import KalorixiaLoader from "@/components/KalorixiaLoader"
 
-type Status = "todos" | "activa" | "cancelada" | "vencida"
-
 const badgeCls: Record<string, string> = {
-  activa:
+  aprobada:
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-  cancelada: "bg-muted text-muted-foreground",
-  vencida: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+  pendiente:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+  rechazada: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
 }
 
-const payCls: Record<string, string> = {
-  pagado: "bg-emerald-100 text-emerald-700",
-  pendiente: "bg-amber-100 text-amber-700",
-  vencido: "bg-rose-100 text-rose-700",
+function formatMes(mes: string): string {
+  const [anio, m] = mes.split("-").map(Number)
+  if (!anio || !m) return mes
+  return new Date(anio, m - 1, 1).toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  })
+}
+
+function Uso({ actual, max }: { actual: number; max: number }) {
+  const alLimite = actual >= max
+  return (
+    <span className="text-muted-foreground">
+      <span className={alLimite ? "font-semibold text-destructive" : ""}>
+        {actual}
+      </span>{" "}
+      de {max}
+    </span>
+  )
 }
 
 export default function Subscriptions() {
-  const [rows, setRows] = useState<SubscriptionRow[]>([])
+  const [rows, setRows] = useState<SuscripcionNutricionista[]>([])
+  const [plans, setPlans] = useState<PlanSuscripcion[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
-  const [filter, setFilter] = useState<Status>("todos")
+  const [filter, setFilter] = useState("todos")
+  const [savingId, setSavingId] = useState<number | null>(null)
 
   useEffect(() => {
     ;(async () => {
-      setRows(await subscriptionsService.list())
-      setLoading(false)
+      try {
+        const [list, planes] = await Promise.all([
+          subscriptionsService.list(),
+          subscriptionsService.listPlans(),
+        ])
+        setRows(list)
+        setPlans(planes)
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las suscripciones"
+        )
+      } finally {
+        setLoading(false)
+      }
     })()
   }, [])
 
+  const handleChangePlan = async (
+    row: SuscripcionNutricionista,
+    codigoPlan: string
+  ) => {
+    if (codigoPlan === row.plan.codigo) return
+    setSavingId(row.id_nutricionista)
+    try {
+      const updated = await subscriptionsService.changePlan(
+        row.id_nutricionista,
+        codigoPlan
+      )
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id_nutricionista === updated.id_nutricionista ? updated : r
+        )
+      )
+      toast.success(
+        `${updated.nombre} ${updated.apellido} pasó al plan ${updated.plan.nombre}`
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo cambiar el plan"
+      )
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   const filtered = rows.filter((r) => {
-    if (filter !== "todos" && r.status !== filter) return false
+    if (filter !== "todos" && r.plan.codigo !== filter) return false
     if (!query.trim()) return true
     const q = query.toLowerCase()
     return (
-      (r.profile.email ?? "").toLowerCase().includes(q) ||
-      (r.profile.full_name ?? "").toLowerCase().includes(q)
+      r.email.toLowerCase().includes(q) ||
+      `${r.nombre} ${r.apellido}`.toLowerCase().includes(q)
     )
   })
 
-  const fmt = (d: string | null) =>
-    d ? new Date(d).toLocaleDateString("es-AR") : "—"
+  const mes = rows[0]?.uso.mes
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -59,7 +118,8 @@ export default function Subscriptions() {
           Nutricionistas
         </h1>
         <p className="text-sm text-muted-foreground">
-          Consultá las suscripciones contratadas por los profesionales.
+          Plan asignado y uso del mes de cada profesional.
+          {mes ? ` Mes: ${formatMes(mes)}` : ""}
         </p>
       </div>
 
@@ -73,15 +133,15 @@ export default function Subscriptions() {
             className="rounded-xl pl-9"
           />
         </div>
-        {(["todos", "activa", "cancelada", "vencida"] as Status[]).map((s) => (
+        {[{ codigo: "todos", nombre: "Todos" }, ...plans].map((p) => (
           <Button
-            key={s}
+            key={p.codigo}
             size="sm"
-            variant={filter === s ? "default" : "outline"}
-            onClick={() => setFilter(s)}
-            className="rounded-full capitalize"
+            variant={filter === p.codigo ? "default" : "outline"}
+            onClick={() => setFilter(p.codigo)}
+            className="rounded-full"
           >
-            {s}
+            {p.nombre}
           </Button>
         ))}
       </div>
@@ -102,57 +162,64 @@ export default function Subscriptions() {
                 <thead>
                   <tr className="border-b bg-secondary/30 text-left">
                     <th className="px-4 py-3 font-semibold">Nutricionista</th>
+                    <th className="px-4 py-3 font-semibold">Matrícula</th>
                     <th className="px-4 py-3 font-semibold">Plan</th>
-                    <th className="px-4 py-3 font-semibold">Estado</th>
-                    <th className="px-4 py-3 font-semibold">Inicio</th>
-                    <th className="px-4 py-3 font-semibold">Renovación</th>
                     <th className="px-4 py-3 font-semibold">
                       Pacientes activos
                     </th>
-                    <th className="px-4 py-3 font-semibold">Pago</th>
+                    <th className="px-4 py-3 font-semibold">
+                      Borradores del Copiloto del mes
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
                     <tr
-                      key={r.id}
+                      key={r.id_nutricionista}
                       className="border-b last:border-0 hover:bg-secondary/20"
                     >
                       <td className="px-4 py-3">
                         <p className="font-medium text-foreground">
-                          {r.profile.full_name || "Sin nombre"}
+                          {r.nombre} {r.apellido}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {r.profile.email}
+                          {r.email}
                         </p>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {r.plan_name}
-                      </td>
                       <td className="px-4 py-3">
                         <Badge
-                          className={`${badgeCls[r.status] ?? ""} font-semibold`}
+                          className={`${badgeCls[r.estado_matricula] ?? ""} font-semibold`}
                           variant="secondary"
                         >
-                          {r.status}
+                          {r.estado_matricula}
                         </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {fmt(r.started_at)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {fmt(r.next_charge_at)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {r.patients_active}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge
-                          className={`${payCls[r.payment_status ?? ""] ?? "bg-muted text-muted-foreground"} font-semibold`}
-                          variant="secondary"
+                        <select
+                          value={r.plan.codigo}
+                          disabled={savingId === r.id_nutricionista}
+                          onChange={(e) => handleChangePlan(r, e.target.value)}
+                          aria-label={`Plan de ${r.nombre} ${r.apellido}`}
+                          className="h-9 rounded-4xl border border-input bg-input/30 px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {r.payment_status || "—"}
-                        </Badge>
+                          {plans.map((p) => (
+                            <option key={p.codigo} value={p.codigo}>
+                              {p.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Uso
+                          actual={r.uso.pacientes_activos}
+                          max={r.plan.max_pacientes_activos}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Uso
+                          actual={r.uso.generaciones_mes}
+                          max={r.plan.max_generaciones_mes}
+                        />
                       </td>
                     </tr>
                   ))}
