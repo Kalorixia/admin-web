@@ -66,6 +66,30 @@ export const authService = {
     })
   },
 
+  forgotPassword(email: string) {
+    return apiFetch<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    })
+  },
+
+  resetPassword(
+    email: string,
+    codigo: string,
+    newPassword: string,
+    newPasswordConfirmation: string
+  ) {
+    return apiFetch<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: {
+        email,
+        codigo,
+        new_password: newPassword,
+        new_password_confirmation: newPasswordConfirmation,
+      },
+    })
+  },
+
   me(accessToken: string) {
     return apiFetch<UsuarioActual>("/auth/me", {
       method: "GET",
