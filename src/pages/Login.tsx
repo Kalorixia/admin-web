@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -75,7 +75,7 @@ export default function Login() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-9 pr-9"
+                className="pr-9 pl-9"
               />
               <button
                 type="button"
@@ -91,6 +91,14 @@ export default function Login() {
                   <Eye className="size-4" />
                 )}
               </button>
+            </div>
+            <div className="text-right">
+              <Link
+                to="/recuperar-contrasena"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Olvidé mi contraseña
+              </Link>
             </div>
           </div>
 

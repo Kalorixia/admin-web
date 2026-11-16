@@ -8,17 +8,20 @@ import {
   BarChart,
   Bar,
   XAxis,
-  YAxis,
   PieChart,
   Pie,
   Cell,
+  Tooltip,
 } from "recharts"
 import recipesImg from "@/assets/admin-recipes.png"
 import KalorixiaLoader from "@/components/KalorixiaLoader"
 import { usersService } from "@/services/users.service"
 import { nutritionistsService } from "@/services/nutritionists.service"
 import { recipesService } from "@/services/recipes.service"
-import { subscriptionsService } from "@/services/subscriptions.service"
+import {
+  subscriptionsService,
+  type PlanSuscripcion,
+} from "@/services/subscriptions.service"
 import { auditService, type AuditRow } from "@/services/audit.service"
 
 interface Stats {
@@ -26,7 +29,6 @@ interface Stats {
   patients: number
   nutris: number
   pendingNutris: number
-  premium: number
   recipes: number
   recipesActive: number
   recipesReview: number
@@ -47,42 +49,86 @@ const monthsShort = [
   "Dic",
 ]
 
+// KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar.
+const MOSTRAR_ACTIVIDAD_RECIENTE = false
+
+// Oculto: la métrica de salud del sistema no está implementada (el valor era
+// fijo, del prototipo). No borrar.
+const MOSTRAR_SALUD_SISTEMA = false
+
+const tooltipStyle = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  fontSize: 12,
+  color: "var(--popover-foreground)",
+}
+
+function contar_por_mes(fechas: string[]): { m: string; v: number }[] {
+  const now = new Date()
+  const buckets: { m: string; v: number; key: string }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    buckets.push({
+      m: monthsShort[d.getMonth()],
+      v: 0,
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+    })
+  }
+  fechas.forEach((f) => {
+    const d = new Date(f)
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    const b = buckets.find((x) => x.key === key)
+    if (b) b.v += 1
+  })
+  return buckets.map(({ m, v }) => ({ m, v }))
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     users: 0,
     patients: 0,
     nutris: 0,
     pendingNutris: 0,
-    premium: 0,
     recipes: 0,
     recipesActive: 0,
     recipesReview: 0,
   })
   const [audit, setAudit] = useState<AuditRow[]>([])
   const [usersTrend, setUsersTrend] = useState<{ i: number; v: number }[]>([])
-  const [patientsAge, setPatientsAge] = useState<
-    { range: string; v: number }[]
+  const [patientsByMonth, setPatientsByMonth] = useState<
+    { m: string; v: number }[]
   >([])
   const [recipesByMonth, setRecipesByMonth] = useState<
     { m: string; v: number }[]
   >([])
+  const [planCounts, setPlanCounts] = useState<
+    { plan: PlanSuscripcion; total: number }[] | null
+  >(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // KAL-152-02: aparte del Promise.all principal para que un servidor sin
+    // estos endpoints no tire abajo todo el dashboard.
+    Promise.all([subscriptionsService.list(), subscriptionsService.listPlans()])
+      .then(([list, plans]) =>
+        setPlanCounts(
+          plans.map((plan) => ({
+            plan,
+            total: list.filter((n) => n.plan.codigo === plan.codigo).length,
+          }))
+        )
+      )
+      .catch(() => setPlanCounts(null))
+
     ;(async () => {
-      const [
-        users,
-        nutriApplications,
-        { recetas: recipes },
-        subscriptions,
-        auditRows,
-      ] = await Promise.all([
-        usersService.list(),
-        nutritionistsService.list(),
-        recipesService.list(),
-        subscriptionsService.list(),
-        auditService.list(6),
-      ])
+      const [users, nutriApplications, { recetas: recipes }, auditRows] =
+        await Promise.all([
+          usersService.list(),
+          nutritionistsService.list(),
+          recipesService.list(),
+          auditService.list(6),
+        ])
 
       const patients = users.filter((u) => u.roles.includes("paciente")).length
       const nutris = users.filter((u) =>
@@ -91,14 +137,12 @@ export default function Dashboard() {
       const pendingNutris = nutriApplications.filter(
         (n) => n.estado === "pendiente"
       ).length
-      const premium = subscriptions.filter((s) => s.status === "activa").length
 
       setStats({
         users: users.length,
         patients,
         nutris,
         pendingNutris,
-        premium,
         recipes: recipes.length,
         recipesActive: Math.max(recipes.length - 1, 0),
         recipesReview: recipes.length > 0 ? 1 : 0,
@@ -112,31 +156,14 @@ export default function Dashboard() {
       if (trend.length < 2) trend.push({ i: trend.length, v: trend.length + 1 })
       setUsersTrend(trend)
 
-      const now = new Date()
-      const buckets: { m: string; v: number; key: string }[] = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        buckets.push({
-          m: monthsShort[d.getMonth()],
-          v: 0,
-          key: `${d.getFullYear()}-${d.getMonth()}`,
-        })
-      }
-      recipes.forEach((rec) => {
-        const d = new Date(rec.created_at)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        const b = buckets.find((x) => x.key === key)
-        if (b) b.v += 1
-      })
-      setRecipesByMonth(buckets.map(({ m, v }) => ({ m, v })))
-
-      const ranges = [
-        { range: "18-29", v: Math.floor(patients * 0.35) },
-        { range: "30-44", v: Math.ceil(patients * 0.4) },
-        { range: "45-59", v: Math.floor(patients * 0.2) },
-        { range: "60+", v: Math.floor(patients * 0.05) },
-      ]
-      setPatientsAge(ranges)
+      setRecipesByMonth(contar_por_mes(recipes.map((rec) => rec.created_at)))
+      setPatientsByMonth(
+        contar_por_mes(
+          users
+            .filter((u) => u.roles.includes("paciente"))
+            .map((u) => u.fecha_creacion)
+        )
+      )
 
       setLoading(false)
     })()
@@ -204,10 +231,16 @@ export default function Dashboard() {
                         ]
                   }
                 >
+                  <Tooltip
+                    cursor={false}
+                    contentStyle={tooltipStyle}
+                    labelFormatter={() => ""}
+                    formatter={(v) => [v, "Usuarios"]}
+                  />
                   <Line
                     type="monotone"
                     dataKey="v"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--primary)"
                     strokeWidth={2.5}
                     dot={false}
                   />
@@ -248,8 +281,8 @@ export default function Dashboard() {
                     endAngle={-270}
                     stroke="none"
                   >
-                    <Cell fill="hsl(var(--primary))" />
-                    <Cell fill="hsl(var(--muted))" />
+                    <Cell fill="var(--primary)" />
+                    <Cell fill="var(--muted)" />
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
@@ -297,35 +330,35 @@ export default function Dashboard() {
                 {stats.patients}
               </p>
             </div>
-            <div className="h-24 flex-1">
+            <div className="h-32 flex-1">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={patientsAge}
-                  layout="vertical"
-                  margin={{ left: 0, right: 4, top: 4, bottom: 4 }}
+                  data={patientsByMonth}
+                  margin={{ left: 0, right: 0, top: 4, bottom: 0 }}
                 >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="range"
-                    width={40}
+                  <XAxis
+                    dataKey="m"
                     tick={{
                       fontSize: 10,
-                      fill: "hsl(var(--muted-foreground))",
+                      fill: "var(--muted-foreground)",
                     }}
                     axisLine={false}
                     tickLine={false}
                   />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)" }}
+                    contentStyle={tooltipStyle}
+                    formatter={(v) => [v, "Pacientes"]}
+                  />
                   <Bar
                     dataKey="v"
-                    fill="hsl(var(--primary))"
-                    radius={[0, 6, 6, 0]}
+                    fill="var(--primary)"
+                    radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">Edad</p>
         </Card>
 
         <Card>
@@ -341,7 +374,7 @@ export default function Dashboard() {
                 {stats.nutris}
               </p>
             </div>
-            <div className="h-24 flex-1">
+            <div className="h-32 flex-1">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={recipesByMonth}
@@ -351,14 +384,19 @@ export default function Dashboard() {
                     dataKey="m"
                     tick={{
                       fontSize: 10,
-                      fill: "hsl(var(--muted-foreground))",
+                      fill: "var(--muted-foreground)",
                     }}
                     axisLine={false}
                     tickLine={false}
                   />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)" }}
+                    contentStyle={tooltipStyle}
+                    formatter={(v) => [v, "Recetas"]}
+                  />
                   <Bar
                     dataKey="v"
-                    fill="hsl(var(--primary))"
+                    fill="var(--primary)"
                     radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
@@ -370,68 +408,87 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-start justify-between">
             <p className="text-sm text-muted-foreground">
-              Suscripciones Premium Totales
+              Suscripciones por plan
             </p>
             <Crown className="h-4 w-4 text-primary" />
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Suscripciones Premium activas
-          </p>
-          <p className="mt-1 font-heading text-5xl font-bold text-foreground">
-            {stats.premium}
-          </p>
-          <Link
-            to="/suscripciones"
-            className="mt-4 inline-block text-xs font-semibold text-primary underline underline-offset-2 hover:underline"
-          >
-            Gestionar planes
-          </Link>
-        </Card>
-      </div>
-
-      {/* Bottom row */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Actividad reciente
-          </p>
-          {audit.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Sin actividad reciente.
+          {planCounts === null ? (
+            <p className="mt-3 font-heading text-5xl font-bold text-foreground">
+              —
             </p>
           ) : (
-            <ul className="divide-y divide-border/40">
-              {audit.map((a) => (
+            <ul className="mt-3 space-y-1">
+              {planCounts.map(({ plan, total }) => (
                 <li
-                  key={a.id}
-                  className="flex items-center justify-between gap-3 py-2"
+                  key={plan.codigo}
+                  className="flex items-baseline justify-between text-sm"
                 >
-                  <span className="truncate text-sm text-foreground">
-                    {a.action}{" "}
-                    <span className="text-muted-foreground">
-                      · {a.entity_type}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {fmt(a.created_at)}
+                  <span className="text-muted-foreground">{plan.nombre}</span>
+                  <span className="font-heading text-2xl font-bold text-foreground">
+                    {total}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
-
-        <Card>
-          <p className="text-sm text-muted-foreground">Salud del Sistema</p>
-          <div className="flex flex-col items-center justify-center py-4">
-            <Gauge value={92} />
-            <p className="mt-3 text-sm">
-              System Health:{" "}
-              <span className="font-semibold text-primary">Excelente</span>
-            </p>
-          </div>
+          <Link
+            to="/suscripciones"
+            className="mt-4 inline-block text-xs font-semibold text-primary underline underline-offset-2 hover:underline"
+          >
+            Gestionar suscripciones
+          </Link>
         </Card>
       </div>
+
+      {/* Bottom row */}
+      {(MOSTRAR_ACTIVIDAD_RECIENTE || MOSTRAR_SALUD_SISTEMA) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {MOSTRAR_ACTIVIDAD_RECIENTE && (
+            <Card>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Actividad reciente
+              </p>
+              {audit.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Sin actividad reciente.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {audit.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="truncate text-sm text-foreground">
+                        {a.action}{" "}
+                        <span className="text-muted-foreground">
+                          · {a.entity_type}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {fmt(a.created_at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
+
+          {MOSTRAR_SALUD_SISTEMA && (
+            <Card>
+              <p className="text-sm text-muted-foreground">Salud del Sistema</p>
+              <div className="flex flex-col items-center justify-center py-4">
+                <Gauge value={92} />
+                <p className="mt-3 text-sm">
+                  System Health:{" "}
+                  <span className="font-semibold text-primary">Excelente</span>
+                </p>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -458,14 +515,14 @@ function Gauge({ value }: { value: number }) {
       <path
         d={`M 20 80 A ${r} ${r} 0 0 1 160 80`}
         fill="none"
-        stroke="hsl(var(--muted))"
+        stroke="var(--muted)"
         strokeWidth="10"
         strokeLinecap="round"
       />
       <path
         d={`M 20 80 A ${r} ${r} 0 0 1 ${cx + r * Math.cos(rad(180 - angle))} ${cy - r * Math.sin(rad(180 - angle))}`}
         fill="none"
-        stroke="hsl(var(--primary))"
+        stroke="var(--primary)"
         strokeWidth="10"
         strokeLinecap="round"
       />
@@ -474,11 +531,11 @@ function Gauge({ value }: { value: number }) {
         y1={cy}
         x2={needleX}
         y2={needleY}
-        stroke="hsl(var(--foreground))"
+        stroke="var(--foreground)"
         strokeWidth="2.5"
         strokeLinecap="round"
       />
-      <circle cx={cx} cy={cy} r="4" fill="hsl(var(--foreground))" />
+      <circle cx={cx} cy={cy} r="4" fill="var(--foreground)" />
     </svg>
   )
 }

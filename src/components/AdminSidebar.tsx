@@ -5,8 +5,9 @@ import {
   BookOpen,
   Stethoscope,
   Crown,
-  ScrollText,
-  ShieldCheck,
+  // KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar.
+  // ScrollText,
+  // ShieldCheck,
   HelpCircle,
   ChevronDown,
   Leaf,
@@ -38,9 +39,11 @@ const items = [
   { title: "Nutricionistas", url: "/nutricionistas", icon: Stethoscope },
   { title: "Recetas", url: "/recetas", icon: BookOpen },
   { title: "Suscripciones", url: "/suscripciones", icon: Crown },
-  { title: "Planes de Suscripción", url: "/planes", icon: Crown },
-  { title: "Auditoría", url: "/auditoria", icon: ScrollText },
-  { title: "Roles", url: "/roles", icon: ShieldCheck },
+  // KAL-152-02: oculto, los planes entran por migración (sin ABM ni precios). No borrar.
+  // { title: "Planes de Suscripción", url: "/planes", icon: Crown },
+  // KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar.
+  // { title: "Auditoría", url: "/auditoria", icon: ScrollText },
+  // { title: "Roles", url: "/roles", icon: ShieldCheck },
 ]
 
 export default function AdminSidebar() {
