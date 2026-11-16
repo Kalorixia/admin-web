@@ -5,7 +5,15 @@ export interface PlanSuscripcion {
   nombre: string
   max_pacientes_activos: number
   max_generaciones_mes: number
+  max_consultas_asistente_dia: number
 }
+
+export type LimitesPlan = Pick<
+  PlanSuscripcion,
+  | "max_pacientes_activos"
+  | "max_generaciones_mes"
+  | "max_consultas_asistente_dia"
+>
 
 export interface UsoSuscripcion {
   mes: string
@@ -37,6 +45,17 @@ export const subscriptionsService = {
       "/administradores/planes-suscripcion"
     )
     return planes
+  },
+
+  /** Reemplaza los tres límites del plan (KAL-152-03). */
+  async updatePlan(
+    codigo: string,
+    limites: LimitesPlan
+  ): Promise<PlanSuscripcion> {
+    return adminFetch<PlanSuscripcion>(
+      `/administradores/planes-suscripcion/${encodeURIComponent(codigo)}`,
+      { method: "PUT", body: limites }
+    )
   },
 
   async changePlan(

@@ -52,6 +52,10 @@ const monthsShort = [
 // KAL-151-01: oculto, fuera del alcance (datos de prueba). No borrar.
 const MOSTRAR_ACTIVIDAD_RECIENTE = false
 
+// Oculto: la métrica de salud del sistema no está implementada (el valor era
+// fijo, del prototipo). No borrar.
+const MOSTRAR_SALUD_SISTEMA = false
+
 const tooltipStyle = {
   background: "var(--popover)",
   border: "1px solid var(--border)",
@@ -437,50 +441,54 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom row */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {MOSTRAR_ACTIVIDAD_RECIENTE && (
-          <Card>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Actividad reciente
-            </p>
-            {audit.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Sin actividad reciente.
+      {(MOSTRAR_ACTIVIDAD_RECIENTE || MOSTRAR_SALUD_SISTEMA) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {MOSTRAR_ACTIVIDAD_RECIENTE && (
+            <Card>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Actividad reciente
               </p>
-            ) : (
-              <ul className="divide-y divide-border/40">
-                {audit.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-center justify-between gap-3 py-2"
-                  >
-                    <span className="truncate text-sm text-foreground">
-                      {a.action}{" "}
-                      <span className="text-muted-foreground">
-                        · {a.entity_type}
+              {audit.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Sin actividad reciente.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {audit.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="truncate text-sm text-foreground">
+                        {a.action}{" "}
+                        <span className="text-muted-foreground">
+                          · {a.entity_type}
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {fmt(a.created_at)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        )}
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {fmt(a.created_at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
 
-        <Card>
-          <p className="text-sm text-muted-foreground">Salud del Sistema</p>
-          <div className="flex flex-col items-center justify-center py-4">
-            <Gauge value={92} />
-            <p className="mt-3 text-sm">
-              System Health:{" "}
-              <span className="font-semibold text-primary">Excelente</span>
-            </p>
-          </div>
-        </Card>
-      </div>
+          {MOSTRAR_SALUD_SISTEMA && (
+            <Card>
+              <p className="text-sm text-muted-foreground">Salud del Sistema</p>
+              <div className="flex flex-col items-center justify-center py-4">
+                <Gauge value={92} />
+                <p className="mt-3 text-sm">
+                  System Health:{" "}
+                  <span className="font-semibold text-primary">Excelente</span>
+                </p>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   )
 }

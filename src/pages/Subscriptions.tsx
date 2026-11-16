@@ -11,6 +11,7 @@ import {
   type SuscripcionNutricionista,
 } from "@/services/subscriptions.service"
 import KalorixiaLoader from "@/components/KalorixiaLoader"
+import { LimitesPlanes } from "@/components/LimitesPlanes"
 
 const badgeCls: Record<string, string> = {
   aprobada:
@@ -98,6 +99,14 @@ export default function Subscriptions() {
     }
   }
 
+  // Los nutricionistas del plan editado ven los límites nuevos sin recargar.
+  const handlePlanActualizado = (plan: PlanSuscripcion) => {
+    setPlans((prev) => prev.map((p) => (p.codigo === plan.codigo ? plan : p)))
+    setRows((prev) =>
+      prev.map((r) => (r.plan.codigo === plan.codigo ? { ...r, plan } : r))
+    )
+  }
+
   const filtered = rows.filter((r) => {
     if (filter !== "todos" && r.plan.codigo !== filter) return false
     if (!query.trim()) return true
@@ -122,6 +131,13 @@ export default function Subscriptions() {
           {mes ? ` Mes: ${formatMes(mes)}` : ""}
         </p>
       </div>
+
+      {!loading && (
+        <LimitesPlanes
+          plans={plans}
+          onPlanActualizado={handlePlanActualizado}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-md min-w-[240px] flex-1">
