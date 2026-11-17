@@ -45,12 +45,32 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const detail =
       (data && typeof data === "object" && "detail" in data
-        ? String((data as { detail: unknown }).detail)
+        ? formatDetail((data as { detail: unknown }).detail)
         : null) ?? "Ocurrió un error inesperado"
     throw new ApiError(detail, response.status)
   }
 
   return data as T
+}
+
+// FastAPI sends `detail` as a string for HTTPException, but as a list of
+// `{ loc, msg }` objects for a 422 validation error. Stringifying the list
+// would surface "[object Object]" to the user.
+function formatDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail
+  if (!Array.isArray(detail)) return detail == null ? null : String(detail)
+  const messages = detail
+    .map((item) => {
+      if (!item || typeof item !== "object") return String(item)
+      const { loc, msg } = item as { loc?: unknown; msg?: unknown }
+      const field = Array.isArray(loc)
+        ? loc.filter((part) => part !== "body").join(".")
+        : ""
+      const text = typeof msg === "string" ? msg : ""
+      return field ? `${field}: ${text}` : text
+    })
+    .filter(Boolean)
+  return messages.length ? messages.join(" · ") : null
 }
 
 export async function adminFetch<T>(

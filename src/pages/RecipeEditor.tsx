@@ -25,7 +25,36 @@ import {
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
 
-const UNIDADES = ["g", "ml", "u"] as const
+// Must match the backend's closed catalog (`UnidadIngrediente` in
+// kalorixia-server/app/modules/recetas/schemas.py).
+const UNIDADES = [
+  "g",
+  "kg",
+  "ml",
+  "l",
+  "u",
+  "taza",
+  "cda",
+  "cdita",
+  "pizca",
+  "diente",
+  "rama",
+  "tallo",
+  "atado",
+  "rebanada",
+  "lámina",
+  "pinta",
+  "aplicación",
+] as const
+
+// A unit loaded from the database may fall outside the catalog. Listing it
+// keeps the select showing the real value instead of silently displaying the
+// first option while the state still holds the unknown one.
+function opcionesDeUnidad(actual: string): readonly string[] {
+  return actual && !(UNIDADES as readonly string[]).includes(actual)
+    ? [actual, ...UNIDADES]
+    : UNIDADES
+}
 
 interface IngredienteForm {
   nombre: string
@@ -924,9 +953,9 @@ export default function RecipeEditor() {
                     onChange={(e) =>
                       updateIngrediente({ unidad: e.target.value })
                     }
-                    className="h-10 w-20 rounded-xl border border-input bg-background px-2 text-sm"
+                    className="h-10 w-28 rounded-xl border border-input bg-background px-2 text-sm"
                   >
-                    {UNIDADES.map((u) => (
+                    {opcionesDeUnidad(ing.unidad).map((u) => (
                       <option key={u} value={u}>
                         {u}
                       </option>
